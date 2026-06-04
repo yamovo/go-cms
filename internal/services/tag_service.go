@@ -59,7 +59,7 @@ func (s *TagService) List(params TagListParams) ([]models.Tag, int64, error) {
 	}
 
 	var total int64
-	if err := s.db.Model(&models.Tag{}).Count(&total).Error; err != nil {
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
