@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"strings"
@@ -141,10 +142,16 @@ func ActivityLogger(db *gorm.DB) gin.HandlerFunc {
 			userID = &uid
 		}
 
+		// Use entity set by handler, or fall back to URL parsing.
+		entity := GetActivityEntity(c)
+		if entity == "" {
+			entity = extractEntity(c.FullPath())
+		}
+
 		log := models.ActivityLog{
 			UserID:    userID,
 			Action:    methodToAction(method),
-			Entity:    extractEntity(c.FullPath()),
+			Entity:    entity,
 			IP:        c.ClientIP(),
 			UserAgent: c.Request.UserAgent(),
 		}
@@ -212,6 +219,21 @@ func methodToAction(method string) string {
 	}
 }
 
+// SetActivityEntity sets the entity name for activity logging on this request.
+func SetActivityEntity(c *gin.Context, entity string) {
+	c.Set("activity_entity", entity)
+}
+
+// GetActivityEntity returns the entity name set by the handler, or "" if not set.
+func GetActivityEntity(c *gin.Context) string {
+	if v, ok := c.Get("activity_entity"); ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
 func extractEntity(path string) string {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) >= 2 {
@@ -223,9 +245,19 @@ func extractEntity(path string) string {
 // etagWriter wraps gin.ResponseWriter to support ETag.
 type etagWriter struct {
 	gin.ResponseWriter
+	body []byte
 }
 
 func (w *etagWriter) Write(b []byte) (int, error) {
-	// Simple implementation: in production, compute hash.
+	w.body = append(w.body, b...)
 	return w.ResponseWriter.Write(b)
+}
+
+func (w *etagWriter) WriteHeader(code int) {
+	if len(w.body) > 0 {
+		hash := sha256.Sum256(w.body)
+		etag := fmt.Sprintf(`"%x"`, hash[:8])
+		w.Header().Set("ETag", etag)
+	}
+	w.ResponseWriter.WriteHeader(code)
 }

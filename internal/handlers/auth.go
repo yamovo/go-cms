@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/vortexcms/go-cms/internal/auth"
@@ -200,10 +202,10 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	claims := middleware.GetClaims(c)
 	if claims != nil {
-		h.blacklist.Revoke(
-			c.GetHeader("Authorization")[7:],
-			claims.ExpiresAt.Time,
-		)
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			h.blacklist.Revoke(authHeader[7:], claims.ExpiresAt.Time)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
@@ -299,34 +301,35 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 
 // Helper to sanitize user output (remove sensitive fields).
 type SafeUser struct {
-	ID          uint                 `json:"id"`
-	Username    string               `json:"username"`
-	Email       string               `json:"email"`
-	DisplayName string               `json:"display_name"`
-	Avatar      string               `json:"avatar"`
-	Bio         string               `json:"bio"`
-	Website     string               `json:"website"`
-	Role        models.Role          `json:"role"`
-	Status      models.UserStatus    `json:"status"`
-	LastLoginAt *models.User         `json:"-"`
-	LoginCount  int                  `json:"login_count"`
+	ID          uint                  `json:"id"`
+	Username    string                `json:"username"`
+	Email       string                `json:"email"`
+	DisplayName string                `json:"display_name"`
+	Avatar      string                `json:"avatar"`
+	Bio         string                `json:"bio"`
+	Website     string                `json:"website"`
+	Role        models.Role           `json:"role"`
+	Status      models.UserStatus     `json:"status"`
+	LastLoginAt *time.Time            `json:"last_login_at"`
+	LoginCount  int                   `json:"login_count"`
 	Preferences models.UserPreferences `json:"preferences"`
-	CreatedAt   models.User          `json:"-"`
+	CreatedAt   time.Time             `json:"created_at"`
 }
 
 func sanitizeUser(u *models.User) gin.H {
 	return gin.H{
-		"id":           u.ID,
-		"username":     u.Username,
-		"email":        u.Email,
-		"display_name": u.DisplayName,
-		"avatar":       u.AvatarURL(),
-		"bio":          u.Bio,
-		"website":      u.Website,
-		"role":         u.Role,
-		"status":       u.Status,
-		"login_count":  u.LoginCount,
-		"preferences":  u.Preferences,
-		"created_at":   u.CreatedAt,
+		"id":            u.ID,
+		"username":      u.Username,
+		"email":         u.Email,
+		"display_name":  u.DisplayName,
+		"avatar":        u.AvatarURL(),
+		"bio":           u.Bio,
+		"website":       u.Website,
+		"role":          u.Role,
+		"status":        u.Status,
+		"last_login_at": u.LastLoginAt,
+		"login_count":   u.LoginCount,
+		"preferences":   u.Preferences,
+		"created_at":    u.CreatedAt,
 	}
 }

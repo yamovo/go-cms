@@ -20,7 +20,7 @@ func RegisterRoutes(
 ) {
 	// Create handlers.
 	authH := NewAuthHandler(db, jwtMgr, blacklist)
-	articleH := NewArticleHandler(db)
+	articleH := NewArticleHandler(db, cfg.Server.BaseURL)
 	categoryH := NewCategoryHandler(db)
 	tagH := NewTagHandler(db)
 	commentH := NewCommentHandler(db)

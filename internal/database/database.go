@@ -14,9 +14,6 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// DB holds the global database connection.
-var DB *gorm.DB
-
 // Connect initializes the database connection.
 func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	var dialector gorm.Dialector
@@ -59,7 +56,6 @@ func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	DB = db
 	log.Printf("[DB] Connected to %s successfully", cfg.Driver)
 	return db, nil
 }

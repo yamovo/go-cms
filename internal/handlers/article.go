@@ -16,12 +16,13 @@ import (
 
 // ArticleHandler handles article-related HTTP requests.
 type ArticleHandler struct {
-	db *gorm.DB
+	db      *gorm.DB
+	baseURL string
 }
 
 // NewArticleHandler creates a new article handler.
-func NewArticleHandler(db *gorm.DB) *ArticleHandler {
-	return &ArticleHandler{db: db}
+func NewArticleHandler(db *gorm.DB, baseURL string) *ArticleHandler {
+	return &ArticleHandler{db: db, baseURL: baseURL}
 }
 
 // ---------- Request/Response DTOs ----------
@@ -130,7 +131,8 @@ func (h *ArticleHandler) List(c *gin.Context) {
 			Where("tags.slug = ?", tagSlug)
 	}
 	if search != "" {
-		query = query.Where("title LIKE ? OR content LIKE ?", "%"+search+"%", "%"+search+"%")
+		escaped := strings.NewReplacer("%", "\\%", "_", "\\_").Replace(search)
+		query = query.Where("title LIKE ? OR content LIKE ?", "%"+escaped+"%", "%"+escaped+"%")
 	}
 
 	// Sorting.
@@ -206,10 +208,8 @@ func (h *ArticleHandler) GetBySlug(c *gin.Context) {
 		return
 	}
 
-	// Increment view count (async).
-	go func() {
-		h.db.Model(&article).UpdateColumn("view_count", gorm.Expr("view_count + 1"))
-	}()
+	// Increment view count.
+	h.db.Model(&article).UpdateColumn("view_count", gorm.Expr("view_count + 1"))
 
 	c.JSON(http.StatusOK, gin.H{"data": article})
 }
@@ -721,20 +721,21 @@ func (h *ArticleHandler) Feed(c *gin.Context) {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 <channel>
 <title>VortexCMS Feed</title>
-<link>http://localhost:8080</link>
+<link>` + h.baseURL + `</link>
 <description>Latest articles from VortexCMS</description>
 <language>zh-cn</language>
 `)
 	for _, a := range articles {
+		articleURL := h.baseURL + "/articles/" + a.Slug
 		sb.WriteString("<item>\n")
 		sb.WriteString("  <title>" + xmlEscape(a.Title) + "</title>\n")
-		sb.WriteString("  <link>http://localhost:8080/articles/" + a.Slug + "</link>\n")
+		sb.WriteString("  <link>" + articleURL + "</link>\n")
 		sb.WriteString("  <pubDate>" + a.PublishedAt.Format(time.RFC1123Z) + "</pubDate>\n")
 		sb.WriteString("  <description>" + xmlEscape(a.Excerpt) + "</description>\n")
 		if a.Author.DisplayName != "" {
 			sb.WriteString("  <author>" + xmlEscape(a.Author.Email) + " (" + xmlEscape(a.Author.DisplayName) + ")</author>\n")
 		}
-		sb.WriteString("  <guid>http://localhost:8080/articles/" + a.Slug + "</guid>\n")
+		sb.WriteString("  <guid>" + articleURL + "</guid>\n")
 		sb.WriteString("</item>\n")
 	}
 	sb.WriteString("</channel>\n</rss>")
