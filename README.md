@@ -31,6 +31,26 @@
 - 🔎 **全局搜索** — 文章、评论、用户全文搜索
 - 🔄 **实时预览** — Markdown 即时预览
 
+## 🏗️ 架构
+
+```
+HTTP Request → Middleware → Handler → Service → GORM → Database
+```
+
+采用 **三层架构**：Handler 只负责 HTTP 解析与响应，Service 封装全部业务逻辑，便于单元测试和复用。
+
+## 🧪 测试
+
+```bash
+# 运行全部测试
+go test ./...
+
+# 运行 service 层测试（39 个用例，SQLite 内存数据库）
+go test ./internal/services/ -v
+```
+
+Service 层测试覆盖：Auth、Article、Category、Tag、Comment，使用 SQLite `:memory:` 隔离运行。
+
 ## 🛠️ 技术栈
 
 | 层级 | 技术 |
@@ -115,7 +135,8 @@ go-cms/
 │   ├── models/              # 数据模型
 │   ├── auth/                # JWT + 密码处理
 │   ├── middleware/           # 中间件（认证、限流、CORS）
-│   └── handlers/            # HTTP 处理器 + 路由注册
+│   ├── services/            # 业务逻辑层（含单元测试）
+│   └── handlers/            # HTTP 处理器（薄层，调用 service）
 ├── web/                     # Vue 3 前端
 │   ├── src/
 │   │   ├── api/             # API 接口层
