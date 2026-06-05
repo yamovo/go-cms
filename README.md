@@ -1,225 +1,188 @@
 # 🌪️ VortexCMS
 
-一个基于 **Go + Vue 3** 构建的现代化、高性能内容管理系统。
+> 一个基于 **Go + Vue 3** 构建的全功能内容管理系统，涵盖内容创作、权限管理、SEO 优化、数据分析等完整功能，开箱即用。
 
-## ✨ 特性
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
+[![Vue](https://img.shields.io/badge/Vue-3.4-4FC08D?logo=vuedotjs)](https://vuejs.org)
+[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
-### 后端 (Go)
-- 🚀 **高性能** — Go 编译型语言，极致的并发处理能力
-- 🔐 **JWT 认证** — 无状态认证，支持 Access/Refresh Token
-- 🛡️ **RBAC 权限** — 细粒度的角色权限控制系统
-- 📝 **内容管理** — 文章、页面、分类、标签、评论全功能
-- 🗃️ **媒体库** — 文件上传、图片管理、文件夹组织
-- 🔍 **SEO 优化** — Meta 管理、Sitemap、Robots.txt、URL 重定向
-- 📊 **数据分析** — 访问统计、来源分析、设备分布
-- 🧩 **插件系统** — 可扩展的插件架构
-- 🎨 **主题引擎** — 支持多主题切换
-- 📋 **版本历史** — 文章修订版本追踪与恢复
-- 💬 **评论系统** — 多级评论、审核机制、垃圾过滤
-- 📡 **RSS Feed** — 自动生成 RSS 2.0 订阅源
-- ⚡ **限流保护** — IP 级别的 API 速率限制
-- 📦 **数据库支持** — PostgreSQL / MySQL / SQLite
+---
 
-### 前端 (Vue 3)
-- 🖥️ **管理后台** — 完整的后台管理界面
-- ✍️ **双编辑器** — Markdown + 富文本编辑器
-- 📱 **响应式设计** — 适配桌面和移动端
-- 🎭 **暗色主题** — 支持亮色/暗色主题切换
-- 📈 **数据图表** — ECharts 驱动的可视化仪表盘
-- 🖼️ **媒体管理** — 网格/列表视图、拖拽上传
-- 🌳 **分类树** — 可拖拽的树形分类管理
-- 🔎 **全局搜索** — 文章、评论、用户全文搜索
-- 🔄 **实时预览** — Markdown 即时预览
-
-## 🏗️ 架构
+## 📸 预览
 
 ```
-HTTP Request → Middleware → Handler → Service → GORM → Database
+   ┌────────────────────────────────────────┐   
+   │  📊 Dashboard      📝 文章管理          │   
+   │  🗂 分类管理        🏷 标签管理         │   
+   │  💬 评论审核        🖼 媒体库            │   
+   │  👥 用户 & 角色     ⚙ 系统设置          │   
+   │  🔍 SEO & 站点地图  📈 访问统计          │   
+   └────────────────────────────────────────┘   
 ```
 
-采用 **三层架构**：Handler 只负责 HTTP 解析与响应，Service 封装全部业务逻辑，便于单元测试和复用。
+---
 
-## 🧪 测试
+## ✨ 核心功能
 
-```bash
-# 运行全部测试
-go test ./...
-
-# 运行 service 层测试（39 个用例，SQLite 内存数据库）
-go test ./internal/services/ -v
-```
-
-Service 层测试覆盖：Auth、Article、Category、Tag、Comment，使用 SQLite `:memory:` 隔离运行。
-
-## 🛠️ 技术栈
-
-| 层级 | 技术 |
+| 模块 | 功能 |
 |------|------|
+| 🔐 认证授权 | JWT 登录注册、双 Token 刷新、RBAC 角色权限、IP 限流 |
+| 📝 内容管理 | 文章 CRUD、Markdown/富文本双编辑器、版本历史、批量操作 |
+| 🗃 媒体库 | 拖拽上传、缩略图生成、文件夹管理、批量删除 |
+| 💬 评论系统 | 多级嵌套评论、审核/垃圾过滤、邮件通知 |
+| 🏷 分类标签 | 无限层级分类树、标签合并、slug 友好链接 |
+| 🔍 SEO | Meta 管理、XML Sitemap、Robots.txt、301 重定向 |
+| 📊 数据分析 | 页面浏览量、来源统计、设备分布、ECharts 图表 |
+| 📡 RSS / API | 自动生成 RSS 2.0 源、80+ RESTful 接口 |
+| 🧩 扩展系统 | 插件架构、多主题切换、邮件通知、定时备份 |
+| 🎨 前端体验 | 暗色/亮色主题、响应式布局、全局搜索、实时预览 |
+
+---
+
+## 🏗 架构
+
+```
+  Browser / API Client
+         │
+         ▼
+  ┌─────────────┐
+  │  Middleware  │  ← CORS、限流、JWT 鉴权、活动日志
+  ├─────────────┤
+  │   Handler    │  ← HTTP 解析 & 响应（薄层）
+  ├─────────────┤
+  │   Service    │  ← 全部业务逻辑，独立可测试
+  ├─────────────┤
+  │    GORM      │  ← 数据库抽象
+  ├─────────────┤
+  │ PostgreSQL │ MySQL │ SQLite │  ← 多数据库支持
+  └─────────────┘
+```
+
+**三层架构** — Handler → Service → Repository，职责清晰，Service 层 100% 可单独测试（SQLite `:memory:`）。
+
+---
+
+## 🛠 技术栈
+
+| 层级 | 技术选型 |
+|------|----------|
 | 后端语言 | Go 1.22+ |
 | Web 框架 | Gin |
 | ORM | GORM |
 | 数据库 | PostgreSQL 16 / MySQL 8 / SQLite |
-| 缓存 | Redis 7 / 内存缓存 |
-| 认证 | JWT (HS256) |
+| 认证 | JWT HS256 + 黑名单 |
 | 前端框架 | Vue 3.4 + TypeScript |
-| UI 组件 | Element Plus |
+| UI 组件库 | Element Plus |
 | 状态管理 | Pinia |
 | 构建工具 | Vite 5 |
 | 图表 | ECharts 5 |
-| CSS | SCSS + Tailwind |
+| 样式 | SCSS + Tailwind CSS |
 
-## 🚀 快速开始
+---
 
-### 方式一：Docker Compose（推荐）
+## 🚀 5 分钟快速开始
+
+### Docker Compose（推荐）
 
 ```bash
-# 克隆项目
-git clone https://github.com/vortexcms/go-cms.git
+git clone https://github.com/yamovo/go-cms.git
 cd go-cms
-
-# 一键启动
 docker-compose up -d
 
-# 访问
-# 前台: http://localhost
-# 后台: http://localhost/login
-# 账号: admin / admin123
+# 前台 http://localhost
+# 后台 http://localhost/login
+# 账号 admin / admin123
 ```
 
-### 方式二：本地开发
+### 本地运行（仅需 Go）
 
-#### 前置条件
-- Go 1.22+
-- Node.js 20+
-- PostgreSQL 或 SQLite
-
-#### 后端
 ```bash
+git clone https://github.com/yamovo/go-cms.git
 cd go-cms
-
-# 安装依赖
-go mod tidy
-
-# 设置环境变量
-export JWT_SECRET=your-secret-key
-export DB_DRIVER=sqlite
-export DB_NAME=vortexcms
-
-# 运行
 go run cmd/server/main.go
+
+# 打开 http://localhost:8080
+# 账号 admin / admin123
 ```
 
-#### 前端
-```bash
-cd go-cms/web
+> 💡 默认使用 SQLite，零配置即刻运行。生产环境切换 PostgreSQL 只需改环境变量。
 
-# 安装依赖
-npm install
-
-# 开发模式
-npm run dev     # http://localhost:3000
-
-# 生产构建
-npm run build
-```
+---
 
 ## 📁 项目结构
 
 ```
 go-cms/
-├── cmd/server/              # 应用入口
-│   └── main.go
-├── internal/                # 内部包（不对外暴露）
-│   ├── config/              # 配置加载
-│   ├── database/            # 数据库连接、迁移、种子数据
-│   ├── models/              # 数据模型
-│   ├── auth/                # JWT + 密码处理
-│   ├── middleware/           # 中间件（认证、限流、CORS）
-│   ├── services/            # 业务逻辑层（含单元测试）
-│   └── handlers/            # HTTP 处理器（薄层，调用 service）
-├── web/                     # Vue 3 前端
-│   ├── src/
-│   │   ├── api/             # API 接口层
-│   │   ├── assets/          # 静态资源
-│   │   ├── components/      # 通用组件
-│   │   ├── layouts/         # 布局组件
-│   │   ├── router/          # 路由配置
-│   │   ├── stores/          # Pinia 状态管理
-│   │   ├── types/           # TypeScript 类型
-│   │   ├── utils/           # 工具函数
-│   │   └── views/           # 页面组件
-│   └── package.json
-├── deploy/                  # 部署配置
-│   ├── docker/
-│   └── nginx/
-├── tests/                   # 测试文件
-├── docs/                    # 文档
-├── Dockerfile
+├── cmd/server/main.go         # 应用入口
+├── internal/
+│   ├── config/                # 配置（30+ 环境变量驱动）
+│   ├── database/              # 数据库连接、迁移、种子数据
+│   ├── models/                # 20+ 数据模型
+│   ├── auth/                  # JWT & 密码加密
+│   ├── middleware/             # 认证/限流/CORS/日志/恢复
+│   ├── services/              # 业务逻辑层（含单元测试）
+│   └── handlers/              # HTTP 处理器（11 个 Handler）
+├── web/                       # Vue 3 管理后台 & 前台博客
+│   └── src/views/             # 30+ 页面组件
+├── deploy/                    # Docker & Nginx 配置
 ├── docker-compose.yml
 └── README.md
 ```
 
-## 📡 API 接口
+---
 
-### 认证
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/v1/auth/login` | 登录 |
-| POST | `/api/v1/auth/register` | 注册 |
-| POST | `/api/v1/auth/refresh` | 刷新 Token |
-| POST | `/api/v1/auth/logout` | 登出 |
-| GET | `/api/v1/auth/me` | 获取当前用户 |
+## 📡 API 概览
 
-### 文章
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/v1/articles` | 文章列表 |
-| GET | `/api/v1/articles/:id` | 文章详情 |
-| POST | `/api/v1/articles` | 创建文章 |
-| PUT | `/api/v1/articles/:id` | 更新文章 |
-| DELETE | `/api/v1/articles/:id` | 删除文章 |
-| POST | `/api/v1/articles/bulk` | 批量操作 |
-| GET | `/api/v1/articles/:id/revisions` | 版本历史 |
+| 分组 | 接口数 | 说明 |
+|------|--------|------|
+| Auth | 5 | 登录、注册、Token 刷新、个人信息 |
+| Articles | 7 | CRUD、批量操作、版本历史、点赞 |
+| Categories | 5 | 树形分类、拖拽排序 |
+| Tags | 5 | 增删改查、标签合并 |
+| Comments | 7 | 审核、垃圾标记、批量操作 |
+| Media | 7 | 上传（单/批量）、文件夹管理 |
+| Users & Roles | 8 | 用户管理、角色权限分配 |
+| Settings | 4 | 站点设置 |
+| SEO | 5 | Meta、Sitemap、重定向 |
+| Menus | 6 | 多级菜单管理 |
+| Analytics | 4 | 仪表盘、访问趋势、来源分析 |
+| Plugins & Themes | 7 | 插件启用/禁用、主题切换 |
+| System | 3 | 系统信息、健康检查、活动日志 |
 
-### 分类 / 标签 / 评论 / 媒体 / 用户 / 角色 / 设置 / SEO / 菜单 / 分析
-*(完整 API 文档请参阅 `docs/api.md`)*
+> 完整 API 文档：`docs/api.md`
+
+---
 
 ## 🔧 配置
 
-### 环境变量
+所有参数通过 `.env` 文件或环境变量设置：
 
-所有配置通过环境变量设置，详见 `deploy/docker/.env.example`。
-
-### 数据库
-
-默认使用 SQLite（零配置），生产环境建议 PostgreSQL：
-
-```bash
-DB_DRIVER=postgres
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=vortexcms
-DB_PASSWORD=your-password
-DB_NAME=vortexcms
+```env
+DB_DRIVER=sqlite             # postgres | mysql | sqlite
+SERVER_PORT=8080
+JWT_SECRET=your-secret-key
+UPLOAD_MAX_SIZE=20971520     # 20MB
+ANALYTICS_ENABLED=true
+CACHE_DRIVER=memory          # memory | redis
 ```
+
+---
 
 ## 🧪 测试
 
 ```bash
-# 后端测试
-go test ./...
-
-# 前端测试
-cd web && npm test
-
-# E2E 测试
-cd web && npm run test:e2e
+go test ./...                        # 全部测试
+go test ./internal/services/ -v      # Service 层（39 用例）
 ```
 
-## 📄 License
-
-MIT License
+Service 层覆盖 Auth、Article、Category、Tag、Comment，使用 SQLite 内存数据库隔离运行。
 
 ---
 
-> **VortexCMS** — Built with ❤️ using Go + Vue 3
+## 📄 License
+
+MIT © 2024 VortexCMS
+
+---
+
+> 🌀 This project is feature-complete and archived. Feel free to fork and adapt.
