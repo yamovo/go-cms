@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"net/http"
-	"strings"
+	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,104 +14,26 @@ import (
 	"gorm.io/gorm"
 )
 
-// LoggerMiddleware logs HTTP requests.
-func LoggerMiddleware() gin.HandlerFunc {
+// RecoverMiddleware recovers from panics and logs the error.
+func RecoverMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		start := time.Now()
-		path := c.Request.URL.Path
-		query := c.Request.URL.RawQuery
-
-		c.Next()
-
-		latency := time.Since(start)
-		status := c.Writer.Status()
-		clientIP := c.ClientIP()
-		method := c.Request.Method
-		userAgent := c.Request.UserAgent()
-
-		if query != "" {
-			path = path + "?" + query
-		}
-
-		gin.DefaultWriter.Write([]byte(fmt.Sprintf("[API] %s | %3d | %13v | %15s | %-7s %s | %s\n",
-			time.Now().Format("2006-01-02 15:04:05"),
-			status,
-			latency,
-			clientIP,
-			method,
-			path,
-			userAgent,
-		)))
-	}
-}
-
-// CORSMiddleware handles Cross-Origin Resource Sharing.
-func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
-		if origin == "" {
-			origin = "*"
-		}
-
-		// Check if origin is allowed.
-		allowed := false
-		for _, o := range cfg.AllowedOrigins {
-			if o == "*" || o == origin {
-				allowed = true
-				break
+		defer func() {
+			if err := recover(); err != nil {
+				slog.Error("panic recovered",
+					"error", err,
+					"stack", string(debug.Stack()),
+					"path", c.Request.URL.Path,
+				)
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error": "Internal server error",
+				})
 			}
-			// Support wildcard subdomain matching.
-			if strings.HasPrefix(o, "*.") {
-				suffix := o[1:] // e.g., ".example.com"
-				if strings.HasSuffix(origin, suffix) {
-					allowed = true
-					break
-				}
-			}
-		}
-
-		if !allowed {
-			c.Next()
-			return
-		}
-
-		c.Header("Access-Control-Allow-Origin", origin)
-		c.Header("Access-Control-Allow-Methods", strings.Join(cfg.AllowedMethods, ", "))
-		c.Header("Access-Control-Allow-Headers", strings.Join(cfg.AllowedHeaders, ", "))
-		c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", cfg.MaxAge))
-
-		if cfg.AllowCredentials {
-			c.Header("Access-Control-Allow-Credentials", "true")
-		}
-
-		// Handle preflight.
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-
+		}()
 		c.Next()
 	}
 }
 
-// SecurityHeaders adds common security headers.
-func SecurityHeaders() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("X-Frame-Options", "DENY")
-		c.Header("X-XSS-Protection", "1; mode=block")
-		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		if gin.Mode() == gin.ReleaseMode {
-			c.Header("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
-		} else {
-			c.Header("Strict-Transport-Security", "max-age=0")
-		}
-		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss:")
-		c.Next()
-	}
-}
-
-// RequestID adds a unique request ID to each request.
+// RequestID generates a unique request ID for each request.
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")
@@ -124,80 +46,293 @@ func RequestID() gin.HandlerFunc {
 	}
 }
 
-// ActivityLogger logs user actions to the activity_log table.
+// LoggerMiddleware logs HTTP requests using structured logging.
+func LoggerMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		query := c.Request.URL.RawQuery
+
+		c.Next()
+
+		latency := time.Since(start)
+		status := c.Writer.Status()
+
+		attrs := []slog.Attr{
+			slog.Int("status", status),
+			slog.String("method", c.Request.Method),
+			slog.String("path", path),
+			slog.String("query", query),
+			slog.String("ip", c.ClientIP()),
+			slog.Duration("latency", latency),
+			slog.Int("bytes", c.Writer.Size()),
+		}
+
+		if requestID, exists := c.Get("request_id"); exists {
+			attrs = append(attrs, slog.String("request_id", requestID.(string)))
+		}
+
+		level := slog.LevelInfo
+		if status >= 500 {
+			level = slog.LevelError
+		} else if status >= 400 {
+			level = slog.LevelWarn
+		}
+
+		slog.LogAttrs(c.Request.Context(), level, "HTTP request", attrs...)
+	}
+}
+
+// CORSMiddleware handles Cross-Origin Resource Sharing.
+func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin == "" {
+			c.Next()
+			return
+		}
+
+		allowed := false
+		for _, o := range cfg.AllowedOrigins {
+			if o == "*" || o == origin {
+				allowed = true
+				break
+			}
+			// Wildcard subdomain matching.
+			if len(o) > 2 && o[:2] == "*." {
+				domain := o[2:]
+				if len(origin) > len(domain)+1 && origin[len(origin)-len(domain)-1:] == "."+domain {
+					allowed = true
+					break
+				}
+			}
+		}
+
+		if !allowed {
+			c.Next()
+			return
+		}
+
+		c.Header("Access-Control-Allow-Origin", origin)
+		c.Header("Access-Control-Allow-Methods", joinStrings(cfg.AllowedMethods))
+		c.Header("Access-Control-Allow-Headers", joinStrings(cfg.AllowedHeaders))
+		c.Header("Access-Control-Allow-Credentials", fmt.Sprintf("%v", cfg.AllowCredentials))
+		c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", cfg.MaxAge))
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// SecurityHeaders adds security-related HTTP headers.
+func SecurityHeaders() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:;")
+
+		if gin.Mode() == gin.ReleaseMode {
+			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+
+		c.Next()
+	}
+}
+
+// ContentTypeJSON sets the Content-Type header to JSON for API routes.
+func ContentTypeJSON() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if len(c.Request.URL.Path) > 4 && c.Request.URL.Path[:4] == "/api" {
+			c.Header("Content-Type", "application/json; charset=utf-8")
+		}
+		c.Next()
+	}
+}
+
+// ActivityLogger logs mutation requests (POST, PUT, DELETE) to the activity log.
 func ActivityLogger(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
-		// Only log mutations.
 		method := c.Request.Method
 		if method == "GET" || method == "HEAD" || method == "OPTIONS" {
 			return
 		}
 
-		// Don't log if there were errors.
-		if len(c.Errors) > 0 {
+		// Only log successful mutations.
+		if c.Writer.Status() >= 400 {
 			return
 		}
 
-		var userID *uint
-		if user := GetCurrentUser(c); user != nil {
-			uid := user.ID
-			userID = &uid
+		user, exists := c.Get(ContextKeyUser)
+		if !exists {
+			return
 		}
 
-		// Use entity set by handler, or fall back to URL parsing.
-		entity := GetActivityEntity(c)
-		if entity == "" {
-			entity = extractEntity(c.FullPath())
-		}
-
+		u := user.(*models.User)
 		log := models.ActivityLog{
-			UserID:    userID,
-			Action:    methodToAction(method),
-			Entity:    entity,
+			UserID:    &u.ID,
+			Action:    method,
+			Entity:    c.FullPath(),
 			IP:        c.ClientIP(),
 			UserAgent: c.Request.UserAgent(),
 		}
-
-		// Non-blocking write.
-		go func() {
-			if err := db.Create(&log).Error; err != nil {
-				println("[ACTIVITY] failed to log:", err)
-			}
-		}()
+		db.Create(&log)
 	}
 }
 
-// RecoverMiddleware handles panics gracefully.
-func RecoverMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		defer func() {
-			if r := recover(); r != nil {
-				err := fmt.Sprintf("Panic recovered: %v", r)
-				fmt.Println("[RECOVER]", err)
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": "Internal server error",
-				})
-				c.Abort()
+// RateLimitMiddleware provides global rate limiting.
+func RateLimitMiddleware(requestsPerMinute int) gin.HandlerFunc {
+	// Simple token bucket per IP with cleanup.
+	type bucket struct {
+		tokens    int
+		lastReset time.Time
+		lastSeen  time.Time
+	}
+	buckets := make(map[string]*bucket)
+	var mu sync.Mutex
+
+	// Cleanup goroutine: remove stale entries every 5 minutes.
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			mu.Lock()
+			now := time.Now()
+			for ip, b := range buckets {
+				if now.Sub(b.lastSeen) > 10*time.Minute {
+					delete(buckets, ip)
+				}
 			}
-		}()
+			mu.Unlock()
+		}
+	}()
+
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		mu.Lock()
+		b, exists := buckets[ip]
+		if !exists {
+			b = &bucket{tokens: requestsPerMinute, lastReset: time.Now(), lastSeen: time.Now()}
+			buckets[ip] = b
+		}
+		b.lastSeen = time.Now()
+
+		if time.Since(b.lastReset) > time.Minute {
+			b.tokens = requestsPerMinute
+			b.lastReset = time.Now()
+		}
+
+		if b.tokens <= 0 {
+			mu.Unlock()
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error": "Rate limit exceeded",
+			})
+			return
+		}
+
+		b.tokens--
+		mu.Unlock()
 		c.Next()
 	}
 }
 
-// ContentTypeJSON sets JSON content type for API responses.
-func ContentTypeJSON() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Content-Type", "application/json; charset=utf-8")
-		c.Next()
+// IPRateLimit tracks per-group rate limits.
+type IPRateLimit struct {
+	groups map[string]*rateGroup
+	mu     sync.RWMutex
+}
+
+type rateGroup struct {
+	requests int
+	buckets  map[string]*bucketRL
+}
+
+type bucketRL struct {
+	count     int
+	resetTime time.Time
+	lastSeen  time.Time
+}
+
+// NewIPRateLimit creates a new IP-based rate limiter with background cleanup.
+func NewIPRateLimit() *IPRateLimit {
+	rl := &IPRateLimit{groups: make(map[string]*rateGroup)}
+
+	// Cleanup goroutine: remove stale buckets every 5 minutes.
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			rl.mu.Lock()
+			for _, g := range rl.groups {
+				now := time.Now()
+				for ip, b := range g.buckets {
+					if now.Sub(b.lastSeen) > 10*time.Minute {
+						delete(g.buckets, ip)
+					}
+				}
+			}
+			rl.mu.Unlock()
+		}
+	}()
+
+	return rl
+}
+
+// Add registers a new rate limit group.
+func (rl *IPRateLimit) Add(group string, requestsPerMinute int) {
+	rl.groups[group] = &rateGroup{
+		requests: requestsPerMinute,
+		buckets:  make(map[string]*bucketRL),
 	}
 }
 
-// ETag adds ETag support for caching.
-func ETag() gin.HandlerFunc {
+// Shutdown cleans up resources.
+func (rl *IPRateLimit) Shutdown() {
+	// No-op for in-memory implementation.
+}
+
+// GroupRateLimit creates middleware for a specific rate limit group.
+func GroupRateLimit(rl *IPRateLimit, group string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer = &etagWriter{ResponseWriter: c.Writer}
+		rl.mu.RLock()
+		g, exists := rl.groups[group]
+		rl.mu.RUnlock()
+		if !exists {
+			c.Next()
+			return
+		}
+
+		ip := c.ClientIP()
+		rl.mu.Lock()
+		b, exists := g.buckets[ip]
+		if !exists {
+			b = &bucketRL{count: g.requests, resetTime: time.Now(), lastSeen: time.Now()}
+			g.buckets[ip] = b
+		}
+		b.lastSeen = time.Now()
+
+		if time.Since(b.resetTime) > time.Minute {
+			b.count = g.requests
+			b.resetTime = time.Now()
+		}
+
+		if b.count <= 0 {
+			rl.mu.Unlock()
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error": "Rate limit exceeded",
+			})
+			return
+		}
+
+		b.count--
+		rl.mu.Unlock()
 		c.Next()
 	}
 }
@@ -205,65 +340,16 @@ func ETag() gin.HandlerFunc {
 // Helper functions.
 
 func generateRequestID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%x", time.Now().UnixNano())
-	}
-	return fmt.Sprintf("%x", b)
+	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
-func methodToAction(method string) string {
-	switch method {
-	case "POST":
-		return "create"
-	case "PUT", "PATCH":
-		return "update"
-	case "DELETE":
-		return "delete"
-	default:
-		return strings.ToLower(method)
-	}
-}
-
-// SetActivityEntity sets the entity name for activity logging on this request.
-func SetActivityEntity(c *gin.Context, entity string) {
-	c.Set("activity_entity", entity)
-}
-
-// GetActivityEntity returns the entity name set by the handler, or "" if not set.
-func GetActivityEntity(c *gin.Context) string {
-	if v, ok := c.Get("activity_entity"); ok {
-		if s, ok := v.(string); ok {
-			return s
+func joinStrings(strs []string) string {
+	result := ""
+	for i, s := range strs {
+		if i > 0 {
+			result += ", "
 		}
+		result += s
 	}
-	return ""
-}
-
-func extractEntity(path string) string {
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) >= 2 {
-		return parts[1] // e.g., /api/v1/articles -> articles
-	}
-	return "unknown"
-}
-
-// etagWriter wraps gin.ResponseWriter to support ETag.
-type etagWriter struct {
-	gin.ResponseWriter
-	body []byte
-}
-
-func (w *etagWriter) Write(b []byte) (int, error) {
-	w.body = append(w.body, b...)
-	return w.ResponseWriter.Write(b)
-}
-
-func (w *etagWriter) WriteHeader(code int) {
-	if len(w.body) > 0 {
-		hash := sha256.Sum256(w.body)
-		etag := fmt.Sprintf(`"%x"`, hash[:8])
-		w.Header().Set("ETag", etag)
-	}
-	w.ResponseWriter.WriteHeader(code)
+	return result
 }

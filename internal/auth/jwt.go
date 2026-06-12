@@ -177,3 +177,6 @@ func (b *Blacklist) Cleanup() {
 		}
 	}
 }
+
+// Compile-time check: *Blacklist implements TokenStore.
+var _ TokenStore = (*Blacklist)(nil)

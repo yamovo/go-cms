@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/vortexcms/go-cms/internal/auth"
@@ -68,20 +69,34 @@ type AuthService struct {
 	db        *gorm.DB
 	jwtMgr    *auth.JWTManager
 	blacklist *auth.Blacklist
+	guard     *auth.LoginGuard
 }
 
 // NewAuthService creates a new AuthService.
-func NewAuthService(db *gorm.DB, jwtMgr *auth.JWTManager, blacklist *auth.Blacklist) *AuthService {
-	return &AuthService{db: db, jwtMgr: jwtMgr, blacklist: blacklist}
+func NewAuthService(db *gorm.DB, jwtMgr *auth.JWTManager, blacklist *auth.Blacklist, guard *auth.LoginGuard) *AuthService {
+	return &AuthService{db: db, jwtMgr: jwtMgr, blacklist: blacklist, guard: guard}
 }
 
 // Login authenticates a user by username/email and password, records the login
 // event, and returns a token pair together with the sanitized user profile.
 func (s *AuthService) Login(username, password, clientIP, userAgent string) (*auth.TokenPair, *SafeUser, error) {
+	// Check if account is locked.
+	if s.guard != nil {
+		locked, remaining := s.guard.Check(username)
+		if locked {
+			return nil, nil, errors.New("account temporarily locked due to too many failed attempts")
+		}
+		_ = remaining
+	}
+
 	var user models.User
 	if err := s.db.Preload("Role").
 		Where("username = ? OR email = ?", username, username).
 		First(&user).Error; err != nil {
+		// Record failed attempt even for non-existent users (prevent enumeration).
+		if s.guard != nil {
+			s.guard.RecordFailed(username)
+		}
 		return nil, nil, errors.New("invalid credentials")
 	}
 
@@ -90,7 +105,19 @@ func (s *AuthService) Login(username, password, clientIP, userAgent string) (*au
 	}
 
 	if err := auth.CheckPassword(user.Password, password); err != nil {
+		// Record failed attempt.
+		if s.guard != nil {
+			locked, _ := s.guard.RecordFailed(username)
+			if locked {
+				return nil, nil, fmt.Errorf("account locked after %d failed attempts", 5)
+			}
+		}
 		return nil, nil, errors.New("invalid credentials")
+	}
+
+	// Login successful — reset guard.
+	if s.guard != nil {
+		s.guard.RecordSuccess(username)
 	}
 
 	tokenPair, err := s.jwtMgr.GenerateTokenPair(

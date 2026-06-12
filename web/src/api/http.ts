@@ -13,6 +13,24 @@ const config: AxiosRequestConfig = {
 
 const http: AxiosInstance = axios.create(config)
 
+// Token refresh state to prevent concurrent refresh attempts.
+let isRefreshing = false
+let failedQueue: Array<{
+  resolve: (token: string) => void
+  reject: (error: any) => void
+}> = []
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token!)
+    }
+  })
+  failedQueue = []
+}
+
 // Request interceptor: attach JWT token.
 http.interceptors.request.use(
   (cfg) => {
@@ -36,23 +54,49 @@ http.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    switch (response.status) {
-      case 401:
-        // Try refresh token first.
-        const authStore = useAuthStore()
-        if (authStore.refreshToken && !error.config._retry) {
-          error.config._retry = true
-          return authStore.refreshAccessToken().then(() => {
-            error.config.headers.Authorization = `Bearer ${authStore.token}`
-            return http(error.config)
-          }).catch(() => {
-            authStore.logout()
-            router.push('/login')
-          })
-        }
+    const originalRequest = error.config
+
+    // Handle 401 with token refresh queue to prevent concurrent refreshes.
+    if (response.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return http(originalRequest)
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      const authStore = useAuthStore()
+      if (!authStore.refreshToken) {
         authStore.logout()
         router.push('/login')
-        break
+        isRefreshing = false
+        return Promise.reject(error)
+      }
+
+      return authStore
+        .refreshAccessToken()
+        .then((token) => {
+          processQueue(null, token)
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return http(originalRequest)
+        })
+        .catch((err) => {
+          processQueue(err, null)
+          authStore.logout()
+          router.push('/login')
+          return Promise.reject(err)
+        })
+        .finally(() => {
+          isRefreshing = false
+        })
+    }
+
+    switch (response.status) {
       case 403:
         ElMessage.error('权限不足')
         break

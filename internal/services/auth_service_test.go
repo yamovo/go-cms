@@ -17,7 +17,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 		Issuer:          "test",
 	})
 	blacklist := auth.NewBlacklist()
-	svc := NewAuthService(db, jwtMgr, blacklist)
+	svc := NewAuthService(db, jwtMgr, blacklist, nil)
 
 	// Seed creates an admin user with a random password.
 	// We need to create a user with a known password instead.
@@ -46,7 +46,7 @@ func TestAuthService_Login_WrongPassword(t *testing.T) {
 		Secret: "test-secret", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour, Issuer: "test",
 	})
 	blacklist := auth.NewBlacklist()
-	svc := NewAuthService(db, jwtMgr, blacklist)
+	svc := NewAuthService(db, jwtMgr, blacklist, nil)
 
 	createTestUser(t, db, "logintest2", "subscriber")
 
@@ -62,7 +62,7 @@ func TestAuthService_Login_NonExistentUser(t *testing.T) {
 		Secret: "test-secret", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour, Issuer: "test",
 	})
 	blacklist := auth.NewBlacklist()
-	svc := NewAuthService(db, jwtMgr, blacklist)
+	svc := NewAuthService(db, jwtMgr, blacklist, nil)
 
 	_, _, err := svc.Login("nobody", "TestPass1", "127.0.0.1", "test-agent")
 	if err == nil {
@@ -76,7 +76,7 @@ func TestAuthService_Register_Success(t *testing.T) {
 		Secret: "test-secret", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour, Issuer: "test",
 	})
 	blacklist := auth.NewBlacklist()
-	svc := NewAuthService(db, jwtMgr, blacklist)
+	svc := NewAuthService(db, jwtMgr, blacklist, nil)
 
 	req := RegisterRequest{
 		Username: "newuser",
@@ -106,7 +106,7 @@ func TestAuthService_Register_Duplicate(t *testing.T) {
 		Secret: "test-secret", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour, Issuer: "test",
 	})
 	blacklist := auth.NewBlacklist()
-	svc := NewAuthService(db, jwtMgr, blacklist)
+	svc := NewAuthService(db, jwtMgr, blacklist, nil)
 
 	req := RegisterRequest{
 		Username: "dupuser",
@@ -129,7 +129,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		Secret: "test-secret", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour, Issuer: "test",
 	})
 	blacklist := auth.NewBlacklist()
-	svc := NewAuthService(db, jwtMgr, blacklist)
+	svc := NewAuthService(db, jwtMgr, blacklist, nil)
 
 	createTestUser(t, db, "refreshuser", "subscriber")
 	tp, _, _ := svc.Login("refreshuser", "TestPass1", "127.0.0.1", "test-agent")
@@ -149,7 +149,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		Secret: "test-secret", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour, Issuer: "test",
 	})
 	blacklist := auth.NewBlacklist()
-	svc := NewAuthService(db, jwtMgr, blacklist)
+	svc := NewAuthService(db, jwtMgr, blacklist, nil)
 
 	user := createTestUser(t, db, "pwuser", "subscriber")
 
@@ -177,7 +177,7 @@ func TestAuthService_Me(t *testing.T) {
 		Secret: "test-secret", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour, Issuer: "test",
 	})
 	blacklist := auth.NewBlacklist()
-	svc := NewAuthService(db, jwtMgr, blacklist)
+	svc := NewAuthService(db, jwtMgr, blacklist, nil)
 
 	user := createTestUser(t, db, "meuser", "admin")
 

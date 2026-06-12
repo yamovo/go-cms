@@ -1,74 +1,63 @@
-.PHONY: all build run test clean dev docker-up docker-down frontend
+.PHONY: build test lint clean dev migrate seed
 
-# Variables
+# Build variables
 BINARY=vortexcms
+BUILD_DIR=./bin
 GO=go
-NPM=npm
 
-all: build
-
-# Backend
+# Build the application
 build:
-	CGO_ENABLED=1 $(GO) build -o $(BINARY) cmd/server/main.go
+	$(GO) build -o $(BUILD_DIR)/$(BINARY) ./cmd/server
 
-run: build
-	./$(BINARY)
-
+# Run all tests
 test:
-	$(GO) test ./... -v -cover
+	$(GO) test ./... -v -count=1
 
-test-short:
-	$(GO) test ./... -short
+# Run tests with coverage
+test-cover:
+	$(GO) test ./... -coverprofile=coverage.out
+	$(GO) tool cover -html=coverage.out -o coverage.html
 
+# Run linter
 lint:
 	golangci-lint run ./...
 
+# Clean build artifacts
 clean:
-	rm -f $(BINARY)
-	rm -rf uploads/ backups/ logs/ *.db
+	rm -rf $(BUILD_DIR) coverage.out coverage.html
 
-# Frontend
-frontend:
-	cd web && $(NPM) install && $(NPM) run build
+# Run in development mode
+dev:
+	$(GO) run ./cmd/server
 
-frontend-dev:
-	cd web && $(NPM) run dev
+# Run database migrations
+migrate:
+	$(GO) run ./cmd/server --migrate
 
-# Docker
+# Seed the database
+seed:
+	$(GO) run ./cmd/server --seed
+
+# Format code
+fmt:
+	$(GO) fmt ./...
+
+# Vet code
+vet:
+	$(GO) vet ./...
+
+# Generate swagger docs
+swagger:
+	swag init -g cmd/server/main.go -o docs/swagger
+
+# Build Docker image
+docker:
+	docker build -t vortexcms:latest .
+
+# Run with Docker Compose
 docker-up:
 	docker-compose up -d
 
+# Stop Docker Compose
 docker-down:
 	docker-compose down
-
-docker-build:
-	docker-compose build
-
-docker-logs:
-	docker-compose logs -f app
-
-# Development
-dev:
-	$(GO) run cmd/server/main.go
-
-# Database
-migrate:
-	$(GO) run cmd/server/main.go --migrate
-
-seed:
-	$(GO) run cmd/server/main.go --seed
-
-# Help
-help:
-	@echo "VortexCMS Build System"
-	@echo "======================"
-	@echo "  make build         - Build backend binary"
-	@echo "  make run           - Build and run"
-	@echo "  make test          - Run all tests"
-	@echo "  make frontend      - Build frontend"
-	@echo "  make frontend-dev  - Start frontend dev server"
-	@echo "  make docker-up     - Start with Docker Compose"
-	@echo "  make docker-down   - Stop Docker Compose"
-	@echo "  make dev           - Run in development mode"
-	@echo "  make clean         - Remove build artifacts"
-	@echo "  make help          - Show this help"

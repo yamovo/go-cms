@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -24,7 +23,7 @@ func NewAuthHandler(svc *services.AuthService) *AuthHandler {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req services.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 
@@ -34,9 +33,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data": tokenPair,
-		"user": user,
+	Success(c, gin.H{
+		"token": tokenPair,
+		"user":  user,
 	})
 }
 
@@ -45,7 +44,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req services.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 
@@ -55,9 +54,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"data": tokenPair,
-		"user": user,
+	Created(c, gin.H{
+		"token": tokenPair,
+		"user":  user,
 	})
 }
 
@@ -66,17 +65,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req services.RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 
 	tokenPair, err := h.svc.RefreshToken(req.RefreshToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+		Unauthorized(c, "Invalid refresh token")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": tokenPair})
+	Success(c, tokenPair)
 }
 
 // Logout invalidates the current token.
@@ -87,13 +86,13 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			if err := h.svc.Logout(authHeader[7:], claims.UserID); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to logout"})
+				InternalError(c)
 				return
 			}
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+	Success(c, gin.H{"message": "Logged out successfully"})
 }
 
 // Me returns the current authenticated user.
@@ -101,7 +100,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) Me(c *gin.Context) {
 	user := middleware.GetCurrentUser(c)
 	if user == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		Unauthorized(c, "Not authenticated")
 		return
 	}
 
@@ -111,8 +110,8 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"data":        safeUser,
+	Success(c, gin.H{
+		"user":        safeUser,
 		"permissions": permissions,
 	})
 }
@@ -122,7 +121,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	user := middleware.GetCurrentUser(c)
 	if user == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		Unauthorized(c, "Not authenticated")
 		return
 	}
 
@@ -133,7 +132,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		Avatar      *string `json:"avatar"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 
@@ -157,7 +156,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": services.SanitizeUser(updated)})
+	Success(c, services.SanitizeUser(updated))
 }
 
 // ChangePassword changes the current user's password.
@@ -165,13 +164,13 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	user := middleware.GetCurrentUser(c)
 	if user == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		Unauthorized(c, "Not authenticated")
 		return
 	}
 
 	var req services.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 
@@ -180,5 +179,5 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+	Success(c, gin.H{"message": "Password changed successfully"})
 }

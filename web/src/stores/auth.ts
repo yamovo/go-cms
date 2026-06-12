@@ -67,6 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!refreshToken.value) throw new Error('No refresh token')
     const res = await authApi.refresh(refreshToken.value)
     setTokens(res.data)
+    return res.data.access_token
   }
 
   function setTokens(pair: TokenPair) {

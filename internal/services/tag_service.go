@@ -149,9 +149,10 @@ func (s *TagService) Merge(sourceIDs []uint, targetID uint, deleteOld bool) erro
 		s.db.Exec("DELETE FROM article_tags WHERE tag_id = ?", srcID)
 	}
 
-	// Recalculate count.
-	s.db.Model(&target).Update("count",
-		s.db.Model(&models.Tag{}).Select("COUNT(*) FROM article_tags WHERE tag_id = ?", target.ID))
+	// Recalculate count using subquery.
+	var count int64
+	s.db.Table("article_tags").Where("tag_id = ?", target.ID).Count(&count)
+	s.db.Model(&target).Update("count", count)
 
 	if deleteOld {
 		s.db.Where("id IN ?", sourceIDs).Delete(&models.Tag{})

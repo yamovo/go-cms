@@ -2,7 +2,7 @@ package database
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/vortexcms/go-cms/internal/config"
@@ -14,34 +14,38 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// Connect initializes the database connection.
+// Connect establishes a database connection based on the configured driver.
 func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	var dialector gorm.Dialector
 
 	switch cfg.Driver {
 	case "postgres":
-		dialector = postgres.Open(cfg.DSN())
+		dsn := fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
+			cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Port, cfg.SSLMode, cfg.Timezone,
+		)
+		dialector = postgres.Open(dsn)
 	case "mysql":
-		dialector = mysql.Open(cfg.DSN())
+		dsn := fmt.Sprintf(
+			"%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=%s",
+			cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name, cfg.Charset, cfg.Timezone,
+		)
+		dialector = mysql.Open(dsn)
 	case "sqlite":
-		dialector = sqlite.Open(cfg.DSN())
+		dialector = sqlite.Open(cfg.Name + "?_journal_mode=WAL&_busy_timeout=5000")
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", cfg.Driver)
 	}
 
-	logLevel := logger.Warn
-	gormCfg := &gorm.Config{
-		Logger:                                   logger.Default.LogMode(logLevel),
+	db, err := gorm.Open(dialector, &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-		SkipDefaultTransaction:                   true,
-		PrepareStmt:                              true,
-	}
-
-	db, err := gorm.Open(dialector, gormCfg)
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to connect to %s: %w", cfg.Driver, err)
 	}
 
+	// Connection pool settings.
 	sqlDB, err := db.DB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
@@ -51,18 +55,14 @@ func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 
-	// Verify connection.
-	if err := sqlDB.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	log.Printf("[DB] Connected to %s successfully", cfg.Driver)
+	slog.Info("database connected", "driver", cfg.Driver, "host", cfg.Host)
 	return db, nil
 }
 
-// AutoMigrate runs automatic schema migration for all models.
+// AutoMigrate runs GORM auto-migration for all models.
+// This is the legacy migration path. For production, use Migrate().
 func AutoMigrate(db *gorm.DB) error {
-	log.Println("[DB] Running auto-migration...")
+	slog.Info("running auto-migration...")
 
 	err := db.AutoMigrate(
 		// Auth & Users
@@ -92,56 +92,36 @@ func AutoMigrate(db *gorm.DB) error {
 
 		// Extensions
 		&models.Plugin{},
-		&models.ThemeConfig{},
 
 		// Analytics
 		&models.PageView{},
-		&models.SitemapEntry{},
-
-		// System
-		&models.Notification{},
 		&models.ActivityLog{},
 	)
 	if err != nil {
 		return fmt.Errorf("auto-migration failed: %w", err)
 	}
 
-	log.Println("[DB] Auto-migration completed")
+	slog.Info("auto-migration completed")
 	return nil
 }
 
 // Seed populates the database with initial data.
 func Seed(db *gorm.DB) error {
-	log.Println("[DB] Seeding database...")
-	return SeedAll(db)
+	slog.Info("seeding database...")
+	if err := SeedAll(db); err != nil {
+		return fmt.Errorf("seeding failed: %w", err)
+	}
+	return nil
 }
 
-// Health checks the database connection.
-func Health(db *gorm.DB) error {
-	sqlDB, err := db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlDB.Ping()
-}
-
-// Stats returns database connection pool stats.
-func Stats(db *gorm.DB) map[string]interface{} {
-	sqlDB, err := db.DB()
-	if err != nil {
-		return map[string]interface{}{"error": err.Error()}
-	}
-	stats := sqlDB.Stats()
-	return map[string]interface{}{
-		"max_open_connections": stats.MaxOpenConnections,
-		"open_connections":     stats.OpenConnections,
-		"in_use":              stats.InUse,
-		"idle":                stats.Idle,
-		"wait_count":          stats.WaitCount,
-		"wait_duration":       stats.WaitDuration.String(),
-		"max_idle_closed":     stats.MaxIdleClosed,
-		"max_idle_time_closed": stats.MaxIdleTimeClosed,
-		"max_lifetime_closed": stats.MaxLifetimeClosed,
+// Cleanup removes old data (e.g., page views older than retention period).
+func Cleanup(db *gorm.DB, retentionDays int) {
+	cutoff := time.Now().AddDate(0, 0, -retentionDays)
+	result := db.Where("created_at < ?", cutoff).Delete(&models.PageView{})
+	if result.Error != nil {
+		slog.Error("cleanup failed", "error", result.Error)
+	} else {
+		slog.Info("cleanup completed", "deleted_page_views", result.RowsAffected)
 	}
 }
 
@@ -153,25 +133,9 @@ func WithTransaction(db *gorm.DB, fn func(tx *gorm.DB) error) error {
 	}
 
 	if err := fn(tx); err != nil {
-		if rbErr := tx.Rollback().Error; rbErr != nil {
-			return fmt.Errorf("rollback failed: %v (original error: %w)", rbErr, err)
-		}
+		tx.Rollback()
 		return err
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("commit failed: %w", err)
-	}
-	return nil
-}
-
-// CleanupPageViews removes old page views beyond retention period.
-func CleanupPageViews(db *gorm.DB, retentionDays int) error {
-	cutoff := time.Now().AddDate(0, 0, -retentionDays)
-	result := db.Where("created_at < ?", cutoff).Delete(&models.PageView{})
-	if result.Error != nil {
-		return result.Error
-	}
-	log.Printf("[DB] Cleaned up %d old page views", result.RowsAffected)
-	return nil
+	return tx.Commit().Error
 }

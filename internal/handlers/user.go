@@ -80,7 +80,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Username or email already exists"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
@@ -150,7 +150,7 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 	}
 
 	if err := h.svc.ResetPassword(uint(id), req.NewPassword); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
@@ -195,7 +195,7 @@ func (h *RoleHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Role already exists"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
@@ -223,7 +223,7 @@ func (h *RoleHandler) Update(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Cannot modify system roles"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
@@ -248,7 +248,7 @@ func (h *RoleHandler) Delete(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Role is still assigned to users"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"crypto/rand"
 	"encoding/base64"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -218,7 +218,7 @@ func Load() *Config {
 		},
 		Upload: UploadConfig{
 			MaxSize:      int64(envInt("UPLOAD_MAX_SIZE", 20<<20)), // 20MB
-			AllowedTypes: envSlice("UPLOAD_ALLOWED_TYPES", []string{"image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", "application/pdf", "video/mp4"}),
+			AllowedTypes: envSlice("UPLOAD_ALLOWED_TYPES", []string{"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "video/mp4"}),
 			StoragePath:  envStr("UPLOAD_STORAGE_PATH", "./uploads"),
 			URLPrefix:    envStr("UPLOAD_URL_PREFIX", "/uploads"),
 			ThumbnailMax: envInt("UPLOAD_THUMBNAIL_MAX", 400),
@@ -379,15 +379,16 @@ func loadJWTSecret() string {
 	// In release mode, require explicit secret.
 	mode := os.Getenv("SERVER_MODE")
 	if mode == "release" {
-		log.Fatal("[SECURITY] FATAL: JWT_SECRET must be set in production mode. " +
-			"Generate one with: openssl rand -base64 32")
+		slog.Error("JWT_SECRET must be set in production mode")
+		os.Exit(1)
 	}
 	// Development mode: generate random secret and warn.
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		log.Fatal("[SECURITY] Failed to generate JWT secret")
+		slog.Error("failed to generate JWT secret")
+		os.Exit(1)
 	}
 	secret = base64.StdEncoding.EncodeToString(b)
-	log.Printf("[SECURITY] WARNING: Using auto-generated JWT secret. Set JWT_SECRET env var for persistence.")
+	slog.Warn("using auto-generated JWT secret", "hint", "set JWT_SECRET env var for persistence")
 	return secret
 }

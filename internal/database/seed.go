@@ -2,8 +2,9 @@ package database
 
 import (
 	"crypto/rand"
+	"fmt"
 	"encoding/hex"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/vortexcms/go-cms/internal/auth"
@@ -39,7 +40,7 @@ func SeedAll(db *gorm.DB) error {
 		return err
 	}
 
-	log.Println("[DB] Seeding completed")
+	slog.Info("seeding completed")
 	return nil
 }
 
@@ -196,11 +197,13 @@ func seedAdminUser(db *gorm.DB) error {
 	// Get admin password from environment or generate random one.
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 	if adminPassword == "" {
-		adminPassword = generateRandomPasswordSeed(16)
-		log.Printf("[Seed] =======================================================")
-		log.Printf("[Seed] Generated admin password: %s", adminPassword)
-		log.Printf("[Seed] IMPORTANT: Save this password! Set ADMIN_PASSWORD env var for custom.")
-		log.Printf("[Seed] =======================================================")
+		pw, pwErr := generateRandomPasswordSeed(16)
+		if pwErr != nil {
+			return pwErr
+		}
+		adminPassword = pw
+		slog.Info("admin password", "password", adminPassword)
+		slog.Warn("set ADMIN_PASSWORD env var for custom password")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminPassword), auth.BcryptCost)
@@ -225,18 +228,18 @@ func seedAdminUser(db *gorm.DB) error {
 	if err := db.Create(&admin).Error; err != nil {
 		return err
 	}
-	log.Println("[Seed] Created admin user: admin")
+	slog.Info("created admin user")
 	return nil
 }
 
 // generateRandomPasswordSeed creates a cryptographically secure random password.
-func generateRandomPasswordSeed(length int) string {
+func generateRandomPasswordSeed(length int) (string, error) {
 	bytes := make([]byte, length)
 	if _, err := rand.Read(bytes); err != nil {
-		log.Printf("[Seed] Warning: Failed to generate random password: %v", err)
-		return "ChangeMeNow123!"
+		slog.Error("failed to generate random password", "error", err)
+		return "", fmt.Errorf("failed to generate random password: %w", err)
 	}
-	return hex.EncodeToString(bytes)[:length]
+	return hex.EncodeToString(bytes)[:length], nil
 }
 
 func seedSettings(db *gorm.DB) error {

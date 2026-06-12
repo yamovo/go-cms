@@ -17,12 +17,19 @@ const (
 	ContextKeyClaims = "claims"
 )
 
-// AuthMiddleware validates JWT tokens and injects user into context.
-func AuthMiddleware(jwtMgr *auth.JWTManager, db *gorm.DB) gin.HandlerFunc {
+// AuthMiddleware validates JWT tokens, checks revocation, and injects user into context.
+func AuthMiddleware(jwtMgr *auth.JWTManager, db *gorm.DB, store auth.TokenStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := extractToken(c)
 		if token == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization token required"})
+			c.Abort()
+			return
+		}
+
+		// Check if token has been revoked.
+		if store != nil && store.IsRevoked(token) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token has been revoked"})
 			c.Abort()
 			return
 		}
@@ -56,10 +63,16 @@ func AuthMiddleware(jwtMgr *auth.JWTManager, db *gorm.DB) gin.HandlerFunc {
 }
 
 // OptionalAuthMiddleware tries to authenticate but doesn't block.
-func OptionalAuthMiddleware(jwtMgr *auth.JWTManager, db *gorm.DB) gin.HandlerFunc {
+func OptionalAuthMiddleware(jwtMgr *auth.JWTManager, db *gorm.DB, store auth.TokenStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := extractToken(c)
 		if token == "" {
+			c.Next()
+			return
+		}
+
+		// Skip revoked tokens silently.
+		if store != nil && store.IsRevoked(token) {
 			c.Next()
 			return
 		}

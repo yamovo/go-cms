@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,6 +16,7 @@ import (
 	"github.com/vortexcms/go-cms/internal/config"
 	"github.com/vortexcms/go-cms/internal/database"
 	"github.com/vortexcms/go-cms/internal/handlers"
+	"github.com/vortexcms/go-cms/internal/logger"
 	"github.com/vortexcms/go-cms/internal/middleware"
 )
 
@@ -26,23 +27,28 @@ func main() {
 	// Load configuration.
 	cfg := config.Load()
 
+	// Initialize structured logger.
+	logger.Setup(cfg.Log)
+
 	// Set gin mode.
 	gin.SetMode(cfg.Server.Mode)
 
 	// Connect to database.
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 
 	// Run migrations.
 	if err := database.AutoMigrate(db); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+		slog.Error("failed to run migrations", "error", err)
+		os.Exit(1)
 	}
 
 	// Seed database.
 	if err := database.Seed(db); err != nil {
-		log.Printf("Warning: seeding failed: %v", err)
+		slog.Warn("seeding failed", "error", err)
 	}
 
 	// Create upload directory.
@@ -51,6 +57,7 @@ func main() {
 	// Initialize JWT manager.
 	jwtMgr := auth.NewJWTManager(cfg.JWT)
 	blacklist := auth.NewBlacklist()
+	guard := auth.NewLoginGuard()
 
 	// Setup gin.
 	r := gin.New()
@@ -68,7 +75,7 @@ func main() {
 	r.Use(middleware.RateLimitMiddleware(cfg.Limits.APIRateLimit))
 
 	// Register all routes.
-	rateLimiter := handlers.RegisterRoutes(r, db, cfg, jwtMgr, blacklist)
+	rateLimiter := handlers.RegisterRoutes(r, db, cfg, jwtMgr, blacklist, guard)
 
 	// Serve frontend static files (if built).
 	assets := r.Group("/assets")
@@ -99,16 +106,16 @@ func main() {
 
 	// Start server in goroutine.
 	go func() {
-		log.Printf("╔══════════════════════════════════════════╗")
-		log.Printf("║          VortexCMS v1.0.0               ║")
-		log.Printf("║  Server running on http://%s:%d  ║", cfg.Server.Host, cfg.Server.Port)
-		log.Printf("║  Admin account ready (see ADMIN_PASSWORD env var) ║")
-		log.Printf("║  Mode:  %s                           ║", cfg.Server.Mode)
-		log.Printf("║  DB:    %s                              ║", cfg.Database.Driver)
-		log.Printf("╚══════════════════════════════════════════╝")
+		slog.Info("VortexCMS starting",
+			"host", cfg.Server.Host,
+			"port", cfg.Server.Port,
+			"mode", cfg.Server.Mode,
+			"db", cfg.Database.Driver,
+		)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			slog.Error("server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -117,14 +124,15 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	slog.Info("shutting down server...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	rateLimiter.Shutdown()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		slog.Error("server forced to shutdown", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("Server exited gracefully")
+	slog.Info("server exited gracefully")
 }

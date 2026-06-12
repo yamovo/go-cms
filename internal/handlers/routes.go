@@ -16,10 +16,11 @@ func RegisterRoutes(
 	cfg *config.Config,
 	jwtMgr *auth.JWTManager,
 	blacklist *auth.Blacklist,
+	guard *auth.LoginGuard,
 ) *middleware.IPRateLimit {
 	// Create services.
 	articleSvc := services.NewArticleService(db, cfg.Server.BaseURL)
-	authSvc := services.NewAuthService(db, jwtMgr, blacklist)
+	authSvc := services.NewAuthService(db, jwtMgr, blacklist, guard)
 	userSvc := services.NewUserService(db)
 	roleSvc := services.NewRoleService(db)
 	categorySvc := services.NewCategoryService(db)
@@ -81,7 +82,7 @@ func RegisterRoutes(
 
 	// ─── Protected API ─────────────────────────────────
 	protected := api.Group("")
-	protected.Use(middleware.AuthMiddleware(jwtMgr, db))
+	protected.Use(middleware.AuthMiddleware(jwtMgr, db, blacklist))
 	{
 		// Auth (user operations).
 		authP := protected.Group("/auth")

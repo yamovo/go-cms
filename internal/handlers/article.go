@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -41,11 +40,11 @@ func (h *ArticleHandler) List(c *gin.Context) {
 
 	result, err := h.svc.List(filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch articles"})
+		InternalError(c)
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	Success(c, result)
 }
 
 // Get returns a single article by ID.
@@ -53,21 +52,21 @@ func (h *ArticleHandler) List(c *gin.Context) {
 func (h *ArticleHandler) Get(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid article ID"})
+		BadRequest(c, "Invalid article ID")
 		return
 	}
 
 	article, err := h.svc.Get(uint(id))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Article not found"})
+			NotFound(c, "Article not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch article"})
+		InternalError(c)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": article})
+	Success(c, article)
 }
 
 // GetBySlug returns a single article by slug (public endpoint).
@@ -76,14 +75,14 @@ func (h *ArticleHandler) GetBySlug(c *gin.Context) {
 	article, err := h.svc.GetBySlug(c.Param("slug"))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Article not found"})
+			NotFound(c, "Article not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch article"})
+		InternalError(c)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": article})
+	Success(c, article)
 }
 
 // Create creates a new article.
@@ -91,7 +90,7 @@ func (h *ArticleHandler) GetBySlug(c *gin.Context) {
 func (h *ArticleHandler) Create(c *gin.Context) {
 	var req services.CreateArticleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 
@@ -106,7 +105,7 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"data": article})
+	Created(c, article)
 }
 
 // Update updates an existing article.
@@ -114,13 +113,13 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 func (h *ArticleHandler) Update(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid article ID"})
+		BadRequest(c, "Invalid article ID")
 		return
 	}
 
 	var req services.UpdateArticleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 
@@ -135,7 +134,7 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": article})
+	Success(c, article)
 }
 
 // Delete soft-deletes an article.
@@ -143,7 +142,7 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 func (h *ArticleHandler) Delete(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid article ID"})
+		BadRequest(c, "Invalid article ID")
 		return
 	}
 
@@ -157,7 +156,7 @@ func (h *ArticleHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Article deleted successfully"})
+	Success(c, gin.H{"message": "Article deleted successfully"})
 }
 
 // BulkAction handles bulk operations on articles.
@@ -165,7 +164,7 @@ func (h *ArticleHandler) Delete(c *gin.Context) {
 func (h *ArticleHandler) BulkAction(c *gin.Context) {
 	var req services.BulkActionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 
@@ -174,17 +173,17 @@ func (h *ArticleHandler) BulkAction(c *gin.Context) {
 		return
 	}
 	if !user.IsEditor() {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
+		Forbidden(c, "Insufficient permissions")
 		return
 	}
 
 	affected, err := h.svc.BulkAction(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		BadRequest(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	Success(c, gin.H{
 		"message":  "Bulk action completed",
 		"action":   req.Action,
 		"affected": affected,
@@ -196,17 +195,17 @@ func (h *ArticleHandler) BulkAction(c *gin.Context) {
 func (h *ArticleHandler) Revisions(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid article ID"})
+		BadRequest(c, "Invalid article ID")
 		return
 	}
 
 	revisions, err := h.svc.Revisions(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch revisions"})
+		InternalError(c)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": revisions})
+	Success(c, revisions)
 }
 
 // RestoreRevision restores an article to a specific revision.
@@ -214,12 +213,12 @@ func (h *ArticleHandler) Revisions(c *gin.Context) {
 func (h *ArticleHandler) RestoreRevision(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid article ID"})
+		BadRequest(c, "Invalid article ID")
 		return
 	}
 	revisionID, err := strconv.ParseUint(c.Param("revision_id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid revision ID"})
+		BadRequest(c, "Invalid revision ID")
 		return
 	}
 
@@ -233,7 +232,7 @@ func (h *ArticleHandler) RestoreRevision(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Revision restored successfully"})
+	Success(c, gin.H{"message": "Revision restored successfully"})
 }
 
 // LikeArticle increments the like count.
@@ -241,16 +240,16 @@ func (h *ArticleHandler) RestoreRevision(c *gin.Context) {
 func (h *ArticleHandler) LikeArticle(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid article ID"})
+		BadRequest(c, "Invalid article ID")
 		return
 	}
 
 	if err := h.svc.LikeArticle(uint(id)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to like article"})
+		InternalError(c)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Article liked"})
+	Success(c, gin.H{"message": "Article liked"})
 }
 
 // Feed returns articles as RSS/XML.
@@ -258,34 +257,19 @@ func (h *ArticleHandler) LikeArticle(c *gin.Context) {
 func (h *ArticleHandler) Feed(c *gin.Context) {
 	xml, err := h.svc.GenerateFeed()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate feed"})
+		InternalError(c)
 		return
 	}
 
-	c.Data(http.StatusOK, "application/rss+xml; charset=utf-8", []byte(xml))
+	c.Data(200, "application/rss+xml; charset=utf-8", []byte(xml))
 }
 
-// handleServiceError maps service errors to HTTP responses.
-func handleServiceError(c *gin.Context, err error) {
-	type statusCoder interface {
-		StatusCode() int
-	}
-	if sc, ok := err.(statusCoder); ok {
-		c.JSON(sc.StatusCode(), gin.H{"error": err.Error()})
-		return
-	}
-	if err == gorm.ErrRecordNotFound {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Resource not found"})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-}
 
 // getCurrentUser returns the authenticated user or sends a 401 response.
 func getCurrentUser(c *gin.Context) *models.User {
 	user := middleware.GetCurrentUser(c)
 	if user == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		Unauthorized(c, "Not authenticated")
 	}
 	return user
 }
