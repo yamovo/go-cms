@@ -298,6 +298,108 @@ definitions:
     required:
     - content
     type: object
+  models.ContentEntry:
+    properties:
+      content_type:
+        $ref: '#/definitions/models.ContentType'
+      content_type_id:
+        type: integer
+      created_at:
+        type: string
+      created_by_id:
+        type: integer
+      data:
+        allOf:
+        - $ref: '#/definitions/models.JSONMap'
+        description: field values as JSON
+      document_id:
+        description: UUID
+        type: string
+      id:
+        type: integer
+      published_at:
+        type: string
+      status:
+        description: draft, published
+        type: string
+      updated_at:
+        type: string
+      updated_by_id:
+        type: integer
+    type: object
+  models.ContentField:
+    properties:
+      content_type_id:
+        type: integer
+      default_value:
+        type: string
+      field_type:
+        description: text, rich_text, integer, float, boolean, date, media, relation,
+          json, enum, email, url
+        type: string
+      id:
+        type: integer
+      label:
+        description: display label
+        type: string
+      max_length:
+        type: integer
+      max_value:
+        type: number
+      min_length:
+        type: integer
+      min_value:
+        type: number
+      name:
+        description: field name (snake_case)
+        type: string
+      options:
+        description: for enum values
+        items:
+          type: string
+        type: array
+      relation_type:
+        description: one_to_one, one_to_many, many_to_one, many_to_many
+        type: string
+      relation_uid:
+        description: related content type UID
+        type: string
+      required:
+        type: boolean
+      sort_order:
+        type: integer
+      unique:
+        type: boolean
+    type: object
+  models.ContentType:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      draft_publish:
+        description: supports draft/publish
+        type: boolean
+      entry_count:
+        type: integer
+      fields:
+        items:
+          $ref: '#/definitions/models.ContentField'
+        type: array
+      id:
+        type: integer
+      is_single:
+        description: single vs collection
+        type: boolean
+      name:
+        description: display name
+        type: string
+      uid:
+        description: e.g. "product", "event"
+        type: string
+      updated_at:
+        type: string
+    type: object
   models.CustomField:
     properties:
       article_id:
@@ -314,6 +416,25 @@ definitions:
         type: string
       value:
         type: string
+    type: object
+  models.JSONMap:
+    additionalProperties: true
+    type: object
+  models.ListResponse:
+    properties:
+      has_next:
+        type: boolean
+      has_prev:
+        type: boolean
+      items: {}
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
     type: object
   models.Permission:
     properties:
@@ -511,6 +632,53 @@ definitions:
     - VisibilityPublic
     - VisibilityPrivate
     - VisibilityPassword
+  models.Webhook:
+    properties:
+      created_at:
+        type: string
+      events:
+        items:
+          type: string
+        type: array
+      headers:
+        items:
+          type: string
+        type: array
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      name:
+        type: string
+      updated_at:
+        type: string
+      url:
+        type: string
+    type: object
+  models.WebhookLog:
+    properties:
+      created_at:
+        type: string
+      duration:
+        description: milliseconds
+        type: integer
+      error:
+        type: string
+      event:
+        type: string
+      id:
+        type: integer
+      payload:
+        type: string
+      response:
+        type: integer
+      success:
+        type: boolean
+      webhook:
+        $ref: '#/definitions/models.Webhook'
+      webhook_id:
+        type: integer
+    type: object
   services.ChangePasswordRequest:
     properties:
       new_password:
@@ -582,6 +750,79 @@ definitions:
     required:
     - title
     type: object
+  services.CreateContentTypeRequest:
+    properties:
+      description:
+        type: string
+      draft_publish:
+        type: boolean
+      fields:
+        items:
+          $ref: '#/definitions/services.CreateFieldRequest'
+        minItems: 1
+        type: array
+      is_single:
+        type: boolean
+      name:
+        maxLength: 128
+        type: string
+      uid:
+        maxLength: 64
+        type: string
+    required:
+    - fields
+    - name
+    - uid
+    type: object
+  services.CreateEntryRequest:
+    properties:
+      data:
+        additionalProperties: true
+        type: object
+      status:
+        description: draft (default) or published
+        type: string
+    required:
+    - data
+    type: object
+  services.CreateFieldRequest:
+    properties:
+      default_value:
+        type: string
+      field_type:
+        type: string
+      label:
+        maxLength: 128
+        type: string
+      max_length:
+        type: integer
+      max_value:
+        type: number
+      min_length:
+        type: integer
+      min_value:
+        type: number
+      name:
+        maxLength: 64
+        type: string
+      options:
+        description: for enum
+        items:
+          type: string
+        type: array
+      relation_type:
+        type: string
+      relation_uid:
+        type: string
+      required:
+        type: boolean
+      unique:
+        type: boolean
+    required:
+    - field_type
+    - label
+    - name
+    type: object
   services.CreateTokenRequest:
     properties:
       expires_at:
@@ -596,6 +837,29 @@ definitions:
         type: array
     required:
     - name
+    type: object
+  services.CreateWebhookRequest:
+    properties:
+      events:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      headers:
+        items:
+          type: string
+        type: array
+      name:
+        maxLength: 128
+        type: string
+      secret:
+        type: string
+      url:
+        type: string
+    required:
+    - events
+    - name
+    - url
     type: object
   services.LoginRequest:
     properties:
@@ -734,6 +998,14 @@ definitions:
       title:
         type: string
       visibility:
+        type: string
+    type: object
+  services.UpdateEntryRequest:
+    properties:
+      data:
+        additionalProperties: true
+        type: object
+      status:
         type: string
     type: object
 info:
@@ -1236,6 +1508,498 @@ paths:
       summary: User registration
       tags:
       - Auth
+  /content-types:
+    get:
+      description: Returns all user-defined content types with field definitions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.ContentType'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: List content types
+      tags:
+      - Content Types
+    post:
+      consumes:
+      - application/json
+      description: Create a new content type with field definitions
+      parameters:
+      - description: Content type definition
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateContentTypeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ContentType'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create content type
+      tags:
+      - Content Types
+  /content-types/{uid}:
+    delete:
+      description: Deletes a content type and all its entries
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete content type
+      tags:
+      - Content Types
+    get:
+      description: Returns a content type with its field definitions
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ContentType'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get content type
+      tags:
+      - Content Types
+  /content/{uid}:
+    get:
+      description: Returns paginated entries of a content type
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: page_size
+        type: integer
+      - description: Filter by status
+        enum:
+        - draft
+        - published
+        in: query
+        name: status
+        type: string
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - default: newest
+        description: Sort order
+        enum:
+        - newest
+        - oldest
+        - updated
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ListResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: List entries
+      tags:
+      - Content Entries
+    post:
+      consumes:
+      - application/json
+      description: Create a new entry for a content type
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      - description: Entry data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateEntryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ContentEntry'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create entry
+      tags:
+      - Content Entries
+  /content/{uid}/{documentId}:
+    delete:
+      description: Delete an entry by document ID
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      - description: Document ID
+        in: path
+        name: documentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete entry
+      tags:
+      - Content Entries
+    get:
+      description: Returns a single entry by document ID
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      - description: Document ID
+        in: path
+        name: documentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ContentEntry'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Get entry
+      tags:
+      - Content Entries
+    put:
+      consumes:
+      - application/json
+      description: Update an existing entry
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      - description: Document ID
+        in: path
+        name: documentId
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.UpdateEntryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ContentEntry'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Update entry
+      tags:
+      - Content Entries
+  /content/{uid}/{documentId}/publish:
+    post:
+      description: Publish a draft entry
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      - description: Document ID
+        in: path
+        name: documentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ContentEntry'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Publish entry
+      tags:
+      - Content Entries
+  /content/{uid}/{documentId}/unpublish:
+    post:
+      description: Revert a published entry to draft
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      - description: Document ID
+        in: path
+        name: documentId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ContentEntry'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Unpublish entry
+      tags:
+      - Content Entries
+  /content/{uid}/export:
+    get:
+      description: Export all entries as JSON
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Export entries
+      tags:
+      - Content Entries
+  /content/{uid}/import:
+    post:
+      consumes:
+      - application/json
+      description: Import entries from JSON data
+      parameters:
+      - description: Content Type UID
+        in: path
+        name: uid
+        required: true
+        type: string
+      - description: JSON data
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    imported:
+                      type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Import entries
+      tags:
+      - Content Entries
   /system/activity:
     get:
       description: Returns paginated activity audit trail
@@ -1447,4 +2211,147 @@ paths:
       summary: Delete API token
       tags:
       - System
+  /webhooks:
+    get:
+      description: Returns all configured webhooks
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Webhook'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: List webhooks
+      tags:
+      - Webhooks
+    post:
+      consumes:
+      - application/json
+      description: Create a new webhook endpoint
+      parameters:
+      - description: Webhook config
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.CreateWebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Webhook'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Create webhook
+      tags:
+      - Webhooks
+  /webhooks/{id}:
+    delete:
+      description: Delete a webhook by ID
+      parameters:
+      - description: Webhook ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete webhook
+      tags:
+      - Webhooks
+  /webhooks/{id}/logs:
+    get:
+      description: Returns delivery logs for a webhook
+      parameters:
+      - description: Webhook ID
+        in: path
+        name: id
+        type: integer
+      - default: 50
+        description: Max logs
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.WebhookLog'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.APIResponse'
+      security:
+      - BearerAuth: []
+      summary: Webhook logs
+      tags:
+      - Webhooks
 swagger: "2.0"

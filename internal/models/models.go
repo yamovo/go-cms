@@ -431,6 +431,16 @@ type ActivityLog struct {
 // StringSlice is a []string that marshals to JSON for database storage.
 type StringSlice []string
 
+// Has checks if the slice contains a value.
+func (s StringSlice) Has(val string) bool {
+	for _, v := range s {
+		if v == val {
+			return true
+		}
+	}
+	return false
+}
+
 // Value implements driver.Valuer.
 func (s StringSlice) Value() (driver.Value, error) {
 	if s == nil {

@@ -99,6 +99,15 @@ func AutoMigrate(db *gorm.DB) error {
 
 		// API Tokens
 		&models.APIToken{},
+
+		// Content Types
+		&models.ContentType{},
+		&models.ContentField{},
+		&models.ContentEntry{},
+
+		// Webhooks
+		&models.Webhook{},
+		&models.WebhookLog{},
 	)
 	if err != nil {
 		return fmt.Errorf("auto-migration failed: %w", err)

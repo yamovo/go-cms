@@ -35,6 +35,8 @@ func RegisterRoutes(
 	themeSvc := services.NewThemeService(db)
 	systemSvc := services.NewSystemService(db)
 	tokenSvc := services.NewTokenService(db)
+	contentTypeSvc := services.NewContentTypeService(db)
+	webhookSvc := services.NewWebhookService(db)
 
 	// Create handlers.
 	authH := NewAuthHandler(authSvc)
@@ -53,6 +55,8 @@ func RegisterRoutes(
 	themeH := NewThemeHandler(themeSvc)
 	systemH := NewSystemHandler(systemSvc)
 	tokenH := NewTokenHandler(tokenSvc)
+	contentTypeH := NewContentTypeHandler(contentTypeSvc)
+	webhookH := NewWebhookHandler(webhookSvc)
 
 	// Rate limiter for specific groups.
 	rl := middleware.NewIPRateLimit()
@@ -248,6 +252,38 @@ func RegisterRoutes(
 			system.GET("/tokens", middleware.RequireAdmin(), tokenH.List)
 			system.POST("/tokens", middleware.RequireAdmin(), tokenH.Create)
 			system.DELETE("/tokens/:id", middleware.RequireAdmin(), tokenH.Delete)
+		}
+
+		// Content Types (admin only).
+		contentTypes := protected.Group("/content-types")
+		{
+			contentTypes.GET("", middleware.RequireAdmin(), contentTypeH.ListTypes)
+			contentTypes.GET("/:uid", middleware.RequireAdmin(), contentTypeH.GetType)
+			contentTypes.POST("", middleware.RequireAdmin(), contentTypeH.CreateType)
+			contentTypes.DELETE("/:uid", middleware.RequireAdmin(), contentTypeH.DeleteType)
+		}
+
+		// Content Entries (dynamic).
+		content := protected.Group("/content")
+		{
+			content.GET("/:uid", contentTypeH.ListEntries)
+			content.GET("/:uid/export", middleware.RequireAdmin(), contentTypeH.ExportEntries)
+			content.POST("/:uid/import", middleware.RequireAdmin(), contentTypeH.ImportEntries)
+			content.GET("/:uid/:documentId", contentTypeH.GetEntry)
+			content.POST("/:uid", middleware.RequirePermission("content.create"), contentTypeH.CreateEntry)
+			content.PUT("/:uid/:documentId", middleware.RequirePermission("content.update"), contentTypeH.UpdateEntry)
+			content.DELETE("/:uid/:documentId", middleware.RequirePermission("content.delete"), contentTypeH.DeleteEntry)
+			content.POST("/:uid/:documentId/publish", middleware.RequirePermission("content.publish"), contentTypeH.PublishEntry)
+			content.POST("/:uid/:documentId/unpublish", middleware.RequirePermission("content.publish"), contentTypeH.UnpublishEntry)
+		}
+
+		// Webhooks (admin only).
+		webhooks := protected.Group("/webhooks")
+		{
+			webhooks.GET("", middleware.RequireAdmin(), webhookH.List)
+			webhooks.POST("", middleware.RequireAdmin(), webhookH.Create)
+			webhooks.DELETE("/:id", middleware.RequireAdmin(), webhookH.Delete)
+			webhooks.GET("/:id/logs", middleware.RequireAdmin(), webhookH.Logs)
 		}
 	}
 
