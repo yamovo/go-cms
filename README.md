@@ -1,188 +1,216 @@
 # 🌪️ VortexCMS
 
-> 一个基于 **Go + Vue 3** 构建的全功能内容管理系统，涵盖内容创作、权限管理、SEO 优化、数据分析等完整功能，开箱即用。
+> **高性能 Go Headless CMS** — API-first 内容平台，单二进制部署，自定义内容类型，自动生成 REST API。
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
-[![Vue](https://img.shields.io/badge/Vue-3.4-4FC08D?logo=vuedotjs)](https://vuejs.org)
+[![Swagger](https://img.shields.io/badge/API--Docs-Swagger-85EA2D?logo=swagger)](/swagger/index.html)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 ---
 
-## 📸 预览
+## 为什么选 VortexCMS
 
-```
-   ┌────────────────────────────────────────┐   
-   │  📊 Dashboard      📝 文章管理          │   
-   │  🗂 分类管理        🏷 标签管理         │   
-   │  💬 评论审核        🖼 媒体库            │   
-   │  👥 用户 & 角色     ⚙ 系统设置          │   
-   │  🔍 SEO & 站点地图  📈 访问统计          │   
-   └────────────────────────────────────────┘   
-```
-
----
-
-## ✨ 核心功能
-
-| 模块 | 功能 |
-|------|------|
-| 🔐 认证授权 | JWT 登录注册、双 Token 刷新、RBAC 角色权限、IP 限流 |
-| 📝 内容管理 | 文章 CRUD、Markdown/富文本双编辑器、版本历史、批量操作 |
-| 🗃 媒体库 | 拖拽上传、缩略图生成、文件夹管理、批量删除 |
-| 💬 评论系统 | 多级嵌套评论、审核/垃圾过滤、邮件通知 |
-| 🏷 分类标签 | 无限层级分类树、标签合并、slug 友好链接 |
-| 🔍 SEO | Meta 管理、XML Sitemap、Robots.txt、301 重定向 |
-| 📊 数据分析 | 页面浏览量、来源统计、设备分布、ECharts 图表 |
-| 📡 RSS / API | 自动生成 RSS 2.0 源、80+ RESTful 接口 |
-| 🧩 扩展系统 | 插件架构、多主题切换、邮件通知、定时备份 |
-| 🎨 前端体验 | 暗色/亮色主题、响应式布局、全局搜索、实时预览 |
+| | VortexCMS | Strapi | Ghost |
+|---|-----------|--------|-------|
+| 语言 | **Go** | Node.js | Node.js |
+| 内存占用 | **~30MB** | ~200MB | ~150MB |
+| Docker 镜像 | **< 30MB** | ~500MB | ~400MB |
+| 部署方式 | **单二进制** | npm + Node | npm + Node |
+| 自定义内容类型 | ✅ | ✅ | ❌ |
+| Webhook | ✅ | ✅ | ✅ |
+| API Token | ✅ 细粒度 | ✅ | ❌ |
+| SDK | TypeScript | JS/TS | ❌ |
+| SQLite 零依赖 | ✅ | ❌ | ❌ |
 
 ---
 
-## 🏗 架构
+## 核心能力
 
-```
-  Browser / API Client
-         │
-         ▼
-  ┌─────────────┐
-  │  Middleware  │  ← CORS、限流、JWT 鉴权、活动日志
-  ├─────────────┤
-  │   Handler    │  ← HTTP 解析 & 响应（薄层）
-  ├─────────────┤
-  │   Service    │  ← 全部业务逻辑，独立可测试
-  ├─────────────┤
-  │    GORM      │  ← 数据库抽象
-  ├─────────────┤
-  │ PostgreSQL │ MySQL │ SQLite │  ← 多数据库支持
-  └─────────────┘
-```
+### 🧩 自定义内容类型
 
-**三层架构** — Handler → Service → Repository，职责清晰，Service 层 100% 可单独测试（SQLite `:memory:`）。
-
----
-
-## 🛠 技术栈
-
-| 层级 | 技术选型 |
-|------|----------|
-| 后端语言 | Go 1.22+ |
-| Web 框架 | Gin |
-| ORM | GORM |
-| 数据库 | PostgreSQL 16 / MySQL 8 / SQLite |
-| 认证 | JWT HS256 + 黑名单 |
-| 前端框架 | Vue 3.4 + TypeScript |
-| UI 组件库 | Element Plus |
-| 状态管理 | Pinia |
-| 构建工具 | Vite 5 |
-| 图表 | ECharts 5 |
-| 样式 | SCSS + Tailwind CSS |
-
----
-
-## 🚀 5 分钟快速开始
-
-### Docker Compose（推荐）
+像 Strapi 一样定义内容结构，自动生成 CRUD API：
 
 ```bash
-git clone https://github.com/yamovo/go-cms.git
-cd go-cms
-docker-compose up -d
+# 创建 "产品" 内容类型
+curl -X POST /api/v1/content-types \
+  -H "Authorization: Bearer {token}" \
+  -d '{
+    "uid": "product",
+    "name": "产品",
+    "fields": [
+      {"name": "title", "label": "标题", "field_type": "text", "required": true},
+      {"name": "price", "label": "价格", "field_type": "float", "min_value": 0},
+      {"name": "status", "label": "状态", "field_type": "enum", "options": ["在售", "下架"]}
+    ]
+  }'
 
-# 前台 http://localhost
-# 后台 http://localhost/login
-# 账号 admin / admin123
+# 自动生成的 API：
+# GET    /api/v1/content/product           # 列表
+# GET    /api/v1/content/product/:id       # 详情
+# POST   /api/v1/content/product           # 创建
+# PUT    /api/v1/content/product/:id       # 更新
+# DELETE /api/v1/content/product/:id       # 删除
+# POST   /api/v1/content/product/:id/publish   # 发布
 ```
 
-### 本地运行（仅需 Go）
+### 🔐 API Token 系统
+
+```bash
+# 创建细粒度 Token
+curl -X POST /api/v1/system/tokens \
+  -d '{"name":"Next.js","permissions":["articles.read","categories.read"]}'
+# → vc_live_aa3f2a989d57960db02e3328ffe5b079
+```
+
+### 🪝 Webhook
+
+内容变更时自动通知外部系统，支持 HMAC 签名：
+
+```bash
+curl -X POST /api/v1/webhooks \
+  -d '{"name":"Discord","url":"https://hooks.example.com","events":["entry.create","entry.publish"]}'
+```
+
+### 📖 Swagger 文档
+
+启动后访问 `http://localhost:8080/swagger/index.html`，36 个接口全部有文档。
+
+---
+
+## 快速开始
+
+### 仅需 Go
 
 ```bash
 git clone https://github.com/yamovo/go-cms.git
 cd go-cms
 go run cmd/server/main.go
 
-# 打开 http://localhost:8080
-# 账号 admin / admin123
+# API:     http://localhost:8080/api/v1
+# Swagger: http://localhost:8080/swagger/index.html
+# 账号:    admin / admin123
 ```
 
-> 💡 默认使用 SQLite，零配置即刻运行。生产环境切换 PostgreSQL 只需改环境变量。
+### TypeScript SDK
+
+```bash
+npm install @vortexcms/sdk
+```
+
+```typescript
+import { VortexCMS } from '@vortexcms/sdk'
+
+const cms = new VortexCMS({
+  baseURL: 'http://localhost:8080/api/v1',
+  token: 'vc_live_...',
+})
+
+// 内置内容
+const articles = await cms.articles.list({ status: 'published' })
+
+// 动态内容类型
+const products = await cms.content('product').list()
+await cms.content('product').create({
+  data: { title: 'Go 语言圣经', price: 99.9, status: '在售' }
+})
+```
 
 ---
 
-## 📁 项目结构
-
-```
-go-cms/
-├── cmd/server/main.go         # 应用入口
-├── internal/
-│   ├── config/                # 配置（30+ 环境变量驱动）
-│   ├── database/              # 数据库连接、迁移、种子数据
-│   ├── models/                # 20+ 数据模型
-│   ├── auth/                  # JWT & 密码加密
-│   ├── middleware/             # 认证/限流/CORS/日志/恢复
-│   ├── services/              # 业务逻辑层（含单元测试）
-│   └── handlers/              # HTTP 处理器（11 个 Handler）
-├── web/                       # Vue 3 管理后台 & 前台博客
-│   └── src/views/             # 30+ 页面组件
-├── deploy/                    # Docker & Nginx 配置
-├── docker-compose.yml
-└── README.md
-```
-
----
-
-## 📡 API 概览
+## API 概览
 
 | 分组 | 接口数 | 说明 |
 |------|--------|------|
-| Auth | 5 | 登录、注册、Token 刷新、个人信息 |
-| Articles | 7 | CRUD、批量操作、版本历史、点赞 |
-| Categories | 5 | 树形分类、拖拽排序 |
-| Tags | 5 | 增删改查、标签合并 |
-| Comments | 7 | 审核、垃圾标记、批量操作 |
-| Media | 7 | 上传（单/批量）、文件夹管理 |
+| Auth | 7 | 登录、注册、Token 刷新、个人信息 |
+| Articles | 10 | CRUD、批量操作、版本历史、RSS |
+| Content Types | 4 | 自定义内容类型管理 |
+| Content Entries | 8 | 动态内容 CRUD + 发布/取消发布 |
+| Categories | 6 | 树形分类、拖拽排序 |
+| Tags | 6 | 增删改查、标签合并 |
+| Comments | 9 | 审核、垃圾标记、批量操作 |
+| Media | 8 | 上传（单/批量）、文件夹管理 |
 | Users & Roles | 8 | 用户管理、角色权限分配 |
-| Settings | 4 | 站点设置 |
+| Webhooks | 4 | 配置、日志查看 |
+| API Tokens | 3 | 创建、列表、删除 |
 | SEO | 5 | Meta、Sitemap、重定向 |
-| Menus | 6 | 多级菜单管理 |
-| Analytics | 4 | 仪表盘、访问趋势、来源分析 |
-| Plugins & Themes | 7 | 插件启用/禁用、主题切换 |
 | System | 3 | 系统信息、健康检查、活动日志 |
 
-> 完整 API 文档：`docs/api.md`
+> 完整文档：启动后访问 `/swagger/index.html`
 
 ---
 
-## 🔧 配置
+## 项目结构
 
-所有参数通过 `.env` 文件或环境变量设置：
+```
+go-cms/
+├── cmd/server/main.go          # 入口
+├── internal/
+│   ├── auth/                   # JWT、密码、API Key
+│   ├── config/                 # 30+ 环境变量
+│   ├── database/               # 连接、迁移、种子
+│   ├── models/                 # 数据模型（含动态内容类型）
+│   ├── handlers/               # HTTP 处理器（Swagger 注解）
+│   ├── services/               # 业务逻辑层
+│   ├── middleware/              # 认证、限流、CORS
+│   ├── storage/                # 存储驱动（Local / S3）
+│   └── cache/                  # 缓存驱动（Memory / Redis）
+├── sdk/typescript/             # TypeScript SDK
+├── docs/
+│   └── api/                    # Swagger JSON/YAML
+└── web/                        # Vue 3 管理后台
+```
+
+---
+
+## 配置
 
 ```env
-DB_DRIVER=sqlite             # postgres | mysql | sqlite
+# 数据库
+DB_DRIVER=sqlite               # postgres | mysql | sqlite
+
+# 服务器
 SERVER_PORT=8080
+SERVER_MODE=debug              # debug | release
+
+# 认证
 JWT_SECRET=your-secret-key
-UPLOAD_MAX_SIZE=20971520     # 20MB
-ANALYTICS_ENABLED=true
-CACHE_DRIVER=memory          # memory | redis
+
+# 存储
+STORAGE_DRIVER=local           # local | s3
+S3_ENDPOINT=minio:9000
+S3_BUCKET=vortexcms
+
+# 缓存
+CACHE_DRIVER=memory            # memory | redis
+REDIS_ADDR=localhost:6379
 ```
 
 ---
 
-## 🧪 测试
+## 测试
 
 ```bash
-go test ./...                        # 全部测试
-go test ./internal/services/ -v      # Service 层（39 用例）
+go test ./...                       # 全部测试
+go test ./internal/services/ -v     # Service 层（39 用例）
 ```
 
-Service 层覆盖 Auth、Article、Category、Tag、Comment，使用 SQLite 内存数据库隔离运行。
+---
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 后端 | Go 1.22+ / Gin / GORM |
+| 数据库 | PostgreSQL / MySQL / SQLite |
+| 认证 | JWT + API Token + RBAC |
+| 文档 | Swagger / OpenAPI 2.0 |
+| 存储 | Local / S3 兼容 |
+| 缓存 | Memory / Redis |
+| 前端 | Vue 3 + TypeScript + Element Plus |
+| SDK | TypeScript (@vortexcms/sdk) |
 
 ---
 
-## 📄 License
+## License
 
 MIT © 2024 VortexCMS
-
----
-
-> 🌀 This project is feature-complete and archived. Feel free to fork and adapt.
