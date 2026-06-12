@@ -27,7 +27,7 @@ import { ref, onMounted } from 'vue'
 import { themeApi } from '@/api'
 import { ElMessage } from 'element-plus'
 const themes = ref<any[]>([])
-async function fetchThemes() { try { themes.value = (await themeApi.list()).data } catch {} }
+async function fetchThemes() { try { themes.value = (await themeApi.list() as any).data } catch {} }
 async function activateTheme(t: any) {
   await themeApi.activate(t.id); ElMessage.success('主题已激活'); fetchThemes()
 }

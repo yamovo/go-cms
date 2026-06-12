@@ -50,7 +50,7 @@ const filters = reactive({ entity: '', action: '' })
 async function fetchLogs() {
   loading.value = true
   try {
-    const res = await systemApi.activity({ page: page.value, page_size: 50, ...filters })
+    const res: any = await systemApi.activity({ page: page.value, page_size: 50, ...filters })
     logs.value = res.items; total.value = res.total
   } catch { logs.value = [] }
   finally { loading.value = false }
